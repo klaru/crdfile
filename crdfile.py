@@ -16,14 +16,6 @@ import sys, os
 from collections import OrderedDict
 from tkinter import *
 from tkinter.scrolledtext import *
-    
-def show_card():
-    window = Toplevel()
-    key = scrolledtext.get(SEL_FIRST, SEL_LAST)    
-    window.title(key)
-    text = Text(window, bg = 'khaki')
-    text.insert(INSERT, crd.getvalue(key)) 
-    text.pack()    
 
 def gui_input(width, prompt):
 
@@ -122,6 +114,14 @@ class Crd(object):
         for key, value in entries2.items():
             text += key + '\n'
         return text
+        
+    def show_card(self):
+        window = Toplevel()
+        key = scrolledtext.get(SEL_FIRST, SEL_LAST)    
+        window.title(key)
+        text = Text(window, bg = 'khaki')
+        text.insert(INSERT, crd.getvalue(key)) 
+        text.pack()           
 
 if __name__ == '__main__':
     tout = {}
@@ -141,7 +141,7 @@ if __name__ == '__main__':
         crd.entries = tout
         scrolledtext.insert(INSERT, crd.keytoText())
         scrolledtext.pack()
-        button = Button(winkey, text = 'Select', command = show_card)
+        button = Button(winkey, text = 'Select', command = crd.show_card)
         button.pack()
 
         winkey.mainloop()
