@@ -1,7 +1,8 @@
 #! python3
 # -*- coding: utf-8 -*-
 
-#  based on crdextractor from Sébastien Béchet 2014
+#  based on crdextractor.py from Sébastien Béchet 2014 
+#  and cardreader.py from Christian Ziemski 2015
 
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License Version 3 as
@@ -17,48 +18,6 @@ from collections import OrderedDict
 from tkinter import *
 from tkinter.scrolledtext import *
 
-def gui_input(width, prompt):
-
-    root = Toplevel()
-    w = width # width for the Tk root
-    h = 65 # height for the Tk root
-
-    # get screen width and height
-    ws = root.winfo_screenwidth() # width of the screen
-    hs = root.winfo_screenheight() # height of the screen
-
-    # calculate x and y coordinates for the Tk root window
-    x = (ws/2) - (w/2)
-    y = (hs/2) - (h/2)
-
-    # set the dimensions of the screen 
-    # and where it is placed
-    root.geometry('%dx%d+%d+%d' % (w, h, x, y))
-
-
-    # this will contain the entered string, and will
-    # still exist after the window is destroyed
-    var = StringVar()
-
-    # create the GUI
-    label = Label(root, text=prompt)
-    entry = Entry(root, textvariable=var)
-    label.pack(side="left", padx=(20, 0), pady=20)
-    entry.pack(side="right", fill="x", padx=(0, 20), pady=20, expand=True)
-    entry.focus_force()
-
-    # Let the user press the return key to destroy the gui 
-    entry.bind("<Return>", lambda event: root.destroy())
-
-    # this will block until the window is destroyed
-    root.wait_window()
-
-    # after the window has been destroyed, we can't access
-    # the entry widget, but we _can_ access the associated
-    # variable
-    value = var.get()
-    return value           
-    
 # Only MGC at this time
 class Crd(object):
     filename = ""
@@ -75,43 +34,52 @@ class Crd(object):
     def open(self, filename):
         self.filename = filename
         f = open(filename, "rb")
+        card_bytes = f.read() 
+    
         try:
-            self.signature = f.read(3)
+            self.signature = card_bytes[0:3]
             if self.signature != b'MGC':
-                return False
-            self.quantity = int.from_bytes(f.read(2), byteorder='little')
+                print('No other file types except MGC are supported')
+            self.quantity = int.from_bytes(card_bytes[3:5], sys.byteorder)
+            index_start = 5
+            index_entry_len = 52
+            index_len = self.quantity * index_entry_len
+            data_start = index_start + index_len + 1
+            index = card_bytes[index_start:data_start]
+            data = card_bytes[data_start:]
+        
             for i in range(self.quantity):
-                f.seek(6,1)
-                pos = int.from_bytes(f.read(4), byteorder='little')
-                f.seek(1,1)
-                text = f.read(40)
-                text = text.decode('cp1252')
-                text = text.split('\0',1)[0]
-                self.entries[text] = pos
-                f.seek(1,1)
-            for key, seek in self.entries.items():
-                f.seek(seek,0)
-                lob = int.from_bytes(f.read(2), byteorder='little')
-                if lob == 0:
-                    lot = int.from_bytes(f.read(2), byteorder='little')
-                    value = f.read(lot)
-                    value = value.decode('cp1252')
-                    value = value.replace('\r\n', '\n')
-                    self.entries[key] = value
+                index_entry = index[i * index_entry_len:(i+1) * index_entry_len]
+                # Null bytes, reserved for future.
+                assert index_entry[0:6] == b'\x00\x00\x00\x00\x00\x00'
+                # Absolute position of card data in file (32 bits)
+                card_pos = int.from_bytes(index_entry[6:10], sys.byteorder)  
+                index_text = index_entry[11:51]                                  # Index line text, null terminated
+                index_text = index_text[0:index_text.find(b'\00')]
+                index_text = index_text.decode(encoding='latin1')
+                assert index_entry[51] == 0                                      # Null byte, indicates end of entry  
+                self.entries[index_text] = card_pos    
+                lob = int.from_bytes(card_bytes[card_pos:card_pos+2], sys.byteorder)
+                if lob != 0:
+                    print('Graphic support not implemented')                
                 else:
-                    print('erreur lob=', lob,' pour un seek=',seek)
+                    text_len = int.from_bytes(card_bytes[card_pos+2:card_pos+4], sys.byteorder)
+                    value = card_bytes[card_pos+4:card_pos+4 + text_len + 1]
+                    value = value.decode(encoding='latin1')
+                    value = value.replace('\r\n', '\n')
+                    self.entries[index_text] = value
         finally:
             f.close()
     
     def getvalue(self, key):
-        entries2 = OrderedDict(self.entries.items())
-        text = entries2[key] + '\n'
+        entries = OrderedDict(self.entries.items())
+        text = entries[key] + '\n'
         return text
         
     def keytoText(self):
-        entries2 = OrderedDict(self.entries.items())
+        entries = OrderedDict(self.entries.items())
         text = ''
-        for key, value in entries2.items():
+        for key, value in entries.items():
             text += key + '\n'
         return text
         
@@ -132,13 +100,9 @@ if __name__ == '__main__':
         winkey.title(sys.argv[1])  
         scrolledtext = ScrolledText(winkey, width = 40, height = 45, bg = 'beige')         
         
-        nb = len(sys.argv) - 1
-        for i in range(nb):
-            crd = Crd()
-            crd.open(sys.argv[i + 1])
-            tout.update(crd.entries)
         crd = Crd()
-        crd.entries = tout
+        crd.open(sys.argv[1])
+        tout.update(crd.entries)
         scrolledtext.insert(INSERT, crd.keytoText())
         scrolledtext.pack()
         button = Button(winkey, text = 'Select', command = crd.show_card)
