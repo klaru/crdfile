@@ -18,6 +18,50 @@ from collections import OrderedDict
 from tkinter import *
 from tkinter.scrolledtext import *
 
+global filename
+
+def gui_input(width, prompt):
+
+    root = Toplevel()
+    w = width # width for the Tk root
+    h = 65 # height for the Tk root
+
+    # get screen width and height
+    ws = root.winfo_screenwidth() # width of the screen
+    hs = root.winfo_screenheight() # height of the screen
+
+    # calculate x and y coordinates for the Tk root window
+    x = (ws/2) - (w/2)
+    y = (hs/2) - (h/2)
+
+    # set the dimensions of the screen 
+    # and where it is placed
+    root.geometry('%dx%d+%d+%d' % (w, h, x, y))
+
+
+    # this will contain the entered string, and will
+    # still exist after the window is destroyed
+    var = StringVar()
+
+    # create the GUI
+    label = Label(root, text=prompt)
+    entry = Entry(root, textvariable=var)
+    label.pack(side="left", padx=(20, 0), pady=20)
+    entry.pack(side="right", fill="x", padx=(0, 20), pady=20, expand=True)
+    entry.focus_force()
+
+    # Let the user press the return key to destroy the gui 
+    entry.bind("<Return>", lambda event: root.destroy())
+
+    # this will block until the window is destroyed
+    root.wait_window()
+
+    # after the window has been destroyed, we can't access
+    # the entry widget, but we _can_ access the associated
+    # variable
+    value = var.get()
+    return value   
+    
 # Only MGC at this time
 class Crd(object):
     filename = ""
@@ -70,42 +114,58 @@ class Crd(object):
         finally:
             f.close()
     
-    def getvalue(self, key):
+    def save_file(self):
+        print('Save File is not implemented yet')    
+        
+    def add_card(self):
+        f = open(filename, "rb")
+        card_bytes = f.read()  
+        try:
+            self.quantity = int.from_bytes(card_bytes[3:5], sys.byteorder) + 1        
+            index_start = 5       
+            index_entry_len = 52 
+            index_len = self.quantity * index_entry_len              
+            value_start = index_start + index_len + 1       
+            index = card_bytes[index_start:value_start]    
+            index_entry = [None] * 52    
+            index_text = gui_input(600, 'Enter card name: ')
+            index_entry[51] = 0       
+            scrolledtext.insert(INSERT, index_text + '\n')           
+            print('Add Card is not implemented yet')    
+        finally:
+            f.close()
+
+    def delete_card(self):
+        print('Delete Card is not implemented yet')      
+        
+    def getvalue(self, index_text):
         entries = OrderedDict(self.entries.items())
-        text = entries[key] + '\n'
+        text = entries[index_text] + '\n'
         return text
         
     def keytoText(self):
         entries = OrderedDict(self.entries.items())
         text = ''
-        for key, value in entries.items():
-            text += key + '\n'
+        for index_text, value in entries.items():
+            text += index_text + '\n'
         return text
         
     def show_card(self):
         window = Toplevel()
-        key = scrolledtext.get(SEL_FIRST, SEL_LAST)    
-        window.title(key)
+        index_text = scrolledtext.get(SEL_FIRST, SEL_LAST)    
+        window.title(index_text)
         text = Text(window, bg = 'khaki')
-        text.insert(INSERT, crd.getvalue(key)) 
+        text.insert(INSERT, crd.getvalue(index_text)) 
         text.pack()    
     
-    def save_file(self):
-        print('Save File is not implemented yet')    
-        
-    def add_card(self):
-        print('Add Card is not implemented yet')    
-
-    def delete_card(self):
-        print('Delete Card is not implemented yet')            
-
 if __name__ == '__main__':
     tout = {}
     if len(sys.argv) < 2:
         print('Usage : ', sys.argv[0], ' filename.crd')
     else:
         winkey = Tk()
-        winkey.title(sys.argv[1])  
+        filename = sys.argv[1]
+        winkey.title(filename)  
         crd = Crd()
         button1 = Button(winkey, text = 'Select', command = crd.show_card, bg = 'cyan')
         button2 = Button(winkey, text = 'Save File', command = crd.save_file)
@@ -120,7 +180,7 @@ if __name__ == '__main__':
         
         scrolledtext = ScrolledText(winkey, width = 40, height = 45, bg = 'beige')         
         
-        crd.open(sys.argv[1])
+        crd.open(filename)
         tout.update(crd.entries)
         scrolledtext.insert(INSERT, crd.keytoText())
         scrolledtext.pack()        
