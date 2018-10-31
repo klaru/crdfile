@@ -44,9 +44,8 @@ class Crd(object):
             index_start = 5
             index_entry_len = 52
             index_len = self.quantity * index_entry_len
-            data_start = index_start + index_len + 1
-            index = card_bytes[index_start:data_start]
-            data = card_bytes[data_start:]
+            value_start = index_start + index_len + 1
+            index = card_bytes[index_start:value_start]
         
             for i in range(self.quantity):
                 index_entry = index[i * index_entry_len:(i+1) * index_entry_len]
@@ -63,8 +62,8 @@ class Crd(object):
                 if lob != 0:
                     print('Graphic support not implemented')                
                 else:
-                    text_len = int.from_bytes(card_bytes[card_pos+2:card_pos+4], sys.byteorder)
-                    value = card_bytes[card_pos+4:card_pos+4 + text_len + 1]
+                    value_len = int.from_bytes(card_bytes[card_pos+2:card_pos+4], sys.byteorder)
+                    value = card_bytes[card_pos+4:card_pos+4 + value_len + 1]
                     value = value.decode(encoding='latin1')
                     value = value.replace('\r\n', '\n')
                     self.entries[index_text] = value
@@ -89,7 +88,16 @@ class Crd(object):
         window.title(key)
         text = Text(window, bg = 'khaki')
         text.insert(INSERT, crd.getvalue(key)) 
-        text.pack()           
+        text.pack()    
+    
+    def save_file(self):
+        print('Save File is not implemented yet')    
+        
+    def add_card(self):
+        print('Add Card is not implemented yet')    
+
+    def delete_card(self):
+        print('Delete Card is not implemented yet')            
 
 if __name__ == '__main__':
     tout = {}
@@ -98,14 +106,23 @@ if __name__ == '__main__':
     else:
         winkey = Tk()
         winkey.title(sys.argv[1])  
+        crd = Crd()
+        button1 = Button(winkey, text = 'Select', command = crd.show_card, bg = 'cyan')
+        button2 = Button(winkey, text = 'Save File', command = crd.save_file)
+        button3 = Button(winkey, text = 'Quit', command = winkey.destroy, bg= 'red')
+        button4 = Button(winkey, text = 'Delete Card', command = crd.delete_card)    
+        button5 = Button(winkey, text = 'Add Card', command = crd.add_card)        
+        button1.pack(anchor='nw', side='left')
+        button2.pack(anchor='nw', side='left')
+        button3.pack(anchor='ne', side='right')
+        button4.pack(anchor='ne', side='right')
+        button5.pack(anchor='ne')
+        
         scrolledtext = ScrolledText(winkey, width = 40, height = 45, bg = 'beige')         
         
-        crd = Crd()
         crd.open(sys.argv[1])
         tout.update(crd.entries)
         scrolledtext.insert(INSERT, crd.keytoText())
-        scrolledtext.pack()
-        button = Button(winkey, text = 'Select', command = crd.show_card)
-        button.pack()
+        scrolledtext.pack()        
 
         winkey.mainloop()
