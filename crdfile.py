@@ -18,26 +18,23 @@ from collections import OrderedDict
 from tkinter import *
 from tkinter.scrolledtext import *
 
-global filename
+global filename, number_of_cards
 
 def gui_input(width, prompt):
 
     root = Toplevel()
+    
     w = width # width for the Tk root
     h = 65 # height for the Tk root
-
     # get screen width and height
     ws = root.winfo_screenwidth() # width of the screen
     hs = root.winfo_screenheight() # height of the screen
-
     # calculate x and y coordinates for the Tk root window
     x = (ws/2) - (w/2)
     y = (hs/2) - (h/2)
-
     # set the dimensions of the screen 
     # and where it is placed
     root.geometry('%dx%d+%d+%d' % (w, h, x, y))
-
 
     # this will contain the entered string, and will
     # still exist after the window is destroyed
@@ -56,9 +53,8 @@ def gui_input(width, prompt):
     # this will block until the window is destroyed
     root.wait_window()
 
-    # after the window has been destroyed, we can't access
-    # the entry widget, but we _can_ access the associated
-    # variable
+    # after the window has been destroyed, we can't access the entry widget,
+    # tbut we _can_ access the associated variable
     value = var.get()
     return value   
     
@@ -68,7 +64,7 @@ class Crd(object):
     signature = "MGC"
     quantity = 0
     entries = {}
-
+    
     def __init__(self):
         self.filename = ""
         self.signature = "MGC"
@@ -85,6 +81,7 @@ class Crd(object):
             if self.signature != b'MGC':
                 print('No other file types except MGC are supported')
             self.quantity = int.from_bytes(card_bytes[3:5], sys.byteorder)
+            number_of_cards = self.quantity
             index_start = 5
             index_entry_len = 52
             index_len = self.quantity * index_entry_len
@@ -115,16 +112,61 @@ class Crd(object):
             f.close()
     
     def save_file(self):
+        f = open(filename, "rb")
+        tempfile = filename + '_tmp'
+        ftemp = open(tempfile, "wb")
+        card_bytes = f.read()  
+        try:
+            self.quantity = int.from_bytes(card_bytes[3:5], sys.byteorder)    
+            number_of_cards = self.quantity
+            CARD_BYTES_NEW = bytearray(len(card_bytes))
+            CARD_BYTES_NEW[0:3] = b'MGC'                                                                        # NEW
+            CARD_BYTES_NEW[3:5] = number_of_cards.to_bytes(3, sys.byteorder)                                    # NEW
+            index_start = 5
+            index_entry_len = 52
+            index_len = self.quantity + index_entry_len
+            value_start = index_start + index_len + 1
+            index_len_new = number_of_cards * index_entry_len
+            value_start_new = index_start + index_len_new + 1
+            index = card_bytes[index_start:value_start]
+        
+            for i in range(0, number_of_cards):
+                index_entry = index[i * index_entry_len:(i+1) * index_entry_len]            
+                # Null bytes, reserved for future.
+                CARD_BYTES_NEW[index_start:index_start+6] = b'\x00\x00\x00\x00\x00\x00'                         # NEW
+                # Absolute position of card data in file (32 bits) 
+                card_pos = int.from_bytes(index_entry[6:10], sys.byteorder)     
+                CARD_BYTES_NEW[index_start+6:index_start+10] = card_pos.to_bytes(4, sys.byteorder)              # NEW           
+                index_text_new = index_entry[11:51]                               # Index line text, null terminated
+                index_text_new = index_text_new[0:index_text_new.find(b'\00')]
+                index_text_new = index_text_new.decode(encoding='latin1')
+                CARD_BYTES_NEW[index_start+index_start+11:51] =  index_text_new.encode(encoding='latin1')       # NEW
+                CARD_BYTES_NEW[index_start+51] = 0                                                              # NEW , Null byte, indicates end of entry   
+                CARD_BYTES_NEW[card_pos:card_pos+2] = b'\x00\x00'                                               # NEW, lob
+                value_len = int.from_bytes(card_bytes[card_pos+2:card_pos+4], sys.byteorder)
+                CARD_BYTES_NEW[card_pos+2:card_pos+4] = value_len.to_bytes(2, sys.byteorder)                    # NEW
+                value = card_bytes[card_pos+4:card_pos+4 + value_len + 1]
+                value = value.decode(encoding='latin1')
+                value = value.replace('\r\n', '\n')
+                CARD_BYTES_NEW[card_pos+4:card_pos+4 + value_len + 1] = value.encode(encoding='latin1')         # NEW
+                ftemp.write(CARD_BYTES_NEW)
+        finally:
+            f.close()  
+            ftemp.close()
+            
         print('Save File is not implemented yet')    
+        
+    def save_as(self):
+        print('Save As is not implemented yet')    
         
     def add_card(self):
         f = open(filename, "rb")
         card_bytes = f.read()  
         try:
-            self.quantity = int.from_bytes(card_bytes[3:5], sys.byteorder) + 1        
+            number_of_cards += 1         
             index_start = 5       
             index_entry_len = 52 
-            index_len = self.quantity * index_entry_len              
+            index_len = number_of_cards * index_entry_len              
             value_start = index_start + index_len + 1       
             index = card_bytes[index_start:value_start]    
             index_entry = [None] * 52    
@@ -169,14 +211,16 @@ if __name__ == '__main__':
         crd = Crd()
         button1 = Button(winkey, text = 'Select', command = crd.show_card, bg = 'cyan')
         button2 = Button(winkey, text = 'Save File', command = crd.save_file)
-        button3 = Button(winkey, text = 'Quit', command = winkey.destroy, bg= 'red')
-        button4 = Button(winkey, text = 'Delete Card', command = crd.delete_card)    
-        button5 = Button(winkey, text = 'Add Card', command = crd.add_card)        
+        button3 = Button(winkey, text = 'Save As', command = crd.save_as)       
+        button4 = Button(winkey, text = 'Quit', command = winkey.destroy, bg= 'red')
+        button5 = Button(winkey, text = 'Delete Card', command = crd.delete_card)    
+        button6 = Button(winkey, text = 'Add Card', command = crd.add_card)        
         button1.pack(anchor='nw', side='left')
         button2.pack(anchor='nw', side='left')
-        button3.pack(anchor='ne', side='right')
+        button3.pack(anchor='nw', side='left')
         button4.pack(anchor='ne', side='right')
-        button5.pack(anchor='ne')
+        button5.pack(anchor='ne', side='right')
+        button6.pack(anchor='ne')
         
         scrolledtext = ScrolledText(winkey, width = 40, height = 45, bg = 'beige')         
         
