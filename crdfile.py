@@ -57,7 +57,51 @@ def gui_input(width, prompt):
     # tbut we _can_ access the associated variable
     value = var.get()
     return value   
-    
+ 
+def create_file(filename):
+    f = open(filename, 'rb')        
+    card_bytes = f.read()  
+    try:
+        quantity = int.from_bytes(card_bytes[3:5], sys.byteorder)    
+        number_of_cards = quantity
+        CARD_BYTES_NEW = bytearray(len(card_bytes))
+        CARD_BYTES_NEW[0:3] = b'MGC'                                                                        # NEW
+        CARD_BYTES_NEW[3:5] = number_of_cards.to_bytes(2, sys.byteorder)                                    # NEW
+        index_start = 5
+        index_entry_len = 52
+        index_len = quantity + index_entry_len
+        value_start = index_start + index_len + 1
+        index_len_new = number_of_cards * index_entry_len
+        value_start_new = index_start + index_len_new + 1
+        index = card_bytes[index_start:value_start]
+        
+        for i in range(0, number_of_cards-1):
+            index_entry_pos = i * index_entry_len
+            index_entry = index[index_entry_pos:index_entry_pos + index_entry_len]    
+            index_pos = index_start + index_entry_pos
+            # Null bytes, reserved for future.
+            CARD_BYTES_NEW[index_pos:index_pos+6] = b'\x00\x00\x00\x00\x00\x00'                             # NEW
+            # Absolute position of card data in file (32 bits) 
+            card_pos = int.from_bytes(index_entry[6:10], sys.byteorder)     
+            CARD_BYTES_NEW[index_pos+6:index_pos+10] = card_pos.to_bytes(4, sys.byteorder)                  # NEW   
+            CARD_BYTES_NEW[index_pos+10] = 0                                                                # NEW                
+            index_text = index_entry[11:51]                               # Index line text, null terminated
+            index_text = index_text[0:index_text.find(b'\00')]
+            index_text = index_text.decode(encoding='latin1')
+            CARD_BYTES_NEW[index_pos+11:index_pos+51] =  index_text.encode(encoding='latin1')               # NEW
+            CARD_BYTES_NEW[index_pos+51] = 0                                                                # NEW , Null byte, indicates end of entry   
+            CARD_BYTES_NEW[card_pos:card_pos+2] = b'\x00\x00'                                               # NEW, lob
+            value_len = int.from_bytes(card_bytes[card_pos+2:card_pos+4], sys.byteorder)
+            CARD_BYTES_NEW[card_pos+2:card_pos+4] = value_len.to_bytes(2, sys.byteorder)                    # NEW
+            value = card_bytes[card_pos+4:card_pos+4 + value_len + 1]
+            value = value.decode(encoding='latin1')
+#            value = value.replace('\r\n', '\n')
+            CARD_BYTES_NEW[card_pos+4:card_pos+4 + value_len + 1] = value.encode(encoding='latin1')         # NEW
+    finally:
+        f.close()  
+        CARD_BYTES_NEW[0:3] = b'MGC'   
+        return CARD_BYTES_NEW        
+ 
 # Only MGC at this time
 class Crd(object):
     filename = ""
@@ -112,58 +156,20 @@ class Crd(object):
             f.close()
     
     def save_file(self):
-        f = open(filename, 'rb')
         tempfile = filename + '_tmp'
         ftemp = open(tempfile, 'wb')
-        card_bytes = f.read()  
-        try:
-            self.quantity = int.from_bytes(card_bytes[3:5], sys.byteorder)    
-            number_of_cards = self.quantity
-            CARD_BYTES_NEW = bytearray(len(card_bytes))
-            CARD_BYTES_NEW[0:3] = b'MGC'                                                                        # NEW
-            CARD_BYTES_NEW[3:5] = number_of_cards.to_bytes(2, sys.byteorder)                                    # NEW
-            index_start = 5
-            index_entry_len = 52
-            index_len = self.quantity + index_entry_len
-            value_start = index_start + index_len + 1
-            index_len_new = number_of_cards * index_entry_len
-            value_start_new = index_start + index_len_new + 1
-            index = card_bytes[index_start:value_start]
-        
-            for i in range(0, number_of_cards-1):
-                index_entry_pos = i * index_entry_len
-                index_entry = index[index_entry_pos:index_entry_pos + index_entry_len]    
-                index_pos = index_start + index_entry_pos
-                # Null bytes, reserved for future.
-                CARD_BYTES_NEW[index_pos:index_pos+6] = b'\x00\x00\x00\x00\x00\x00'                             # NEW
-                # Absolute position of card data in file (32 bits) 
-                card_pos = int.from_bytes(index_entry[6:10], sys.byteorder)     
-                print(card_pos)
-                CARD_BYTES_NEW[index_pos+6:index_pos+10] = card_pos.to_bytes(4, sys.byteorder)                  # NEW   
-                CARD_BYTES_NEW[index_pos+10] = 0                                                                # NEW                
-                index_text = index_entry[11:51]                               # Index line text, null terminated
-                index_text = index_text[0:index_text.find(b'\00')]
-                index_text = index_text.decode(encoding='latin1')
-                CARD_BYTES_NEW[index_pos+11:index_pos+51] =  index_text.encode(encoding='latin1')               # NEW
-                CARD_BYTES_NEW[index_pos+51] = 0                                                                # NEW , Null byte, indicates end of entry   
-                CARD_BYTES_NEW[card_pos:card_pos+2] = b'\x00\x00'                                               # NEW, lob
-                value_len = int.from_bytes(card_bytes[card_pos+2:card_pos+4], sys.byteorder)
-                CARD_BYTES_NEW[card_pos+2:card_pos+4] = value_len.to_bytes(2, sys.byteorder)                    # NEW
-                value = card_bytes[card_pos+4:card_pos+4 + value_len + 1]
-                value = value.decode(encoding='latin1')
-#                value = value.replace('\r\n', '\n')
-                CARD_BYTES_NEW[card_pos+4:card_pos+4 + value_len + 1] = value.encode(encoding='latin1')         # NEW
-        finally:
-            CARD_BYTES_NEW[0:3] = b'MGC'         
-            ftemp.write(CARD_BYTES_NEW) 
-            f.close()  
-            ftemp.close()
-            
-        print('Save File is not implemented yet')    
+        CARD_BYTES_NEW = create_file(filename)       
+        ftemp.write(CARD_BYTES_NEW) 
+        ftemp.close()
         
     def save_as(self):
-        print('Save As is not implemented yet')    
+        tempfile = gui_input(300, 'Enter file name: ')
+        ftemp = open(tempfile, 'wb')
+        CARD_BYTES_NEW = create_file(filename)       
+        ftemp.write(CARD_BYTES_NEW) 
+        ftemp.close()       
         
+                    
     def add_card(self):
         f = open(filename, "rb")
         card_bytes = f.read()  
