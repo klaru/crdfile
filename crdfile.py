@@ -18,7 +18,7 @@ from collections import OrderedDict
 from tkinter import *
 from tkinter.scrolledtext import *
 
-global filename, number_of_cards
+global filename
 
 def gui_input(width, prompt):
 
@@ -101,7 +101,7 @@ def create_file(filename):
         f.close()  
         CARD_BYTES_NEW[0:3] = b'MGC'   
         return CARD_BYTES_NEW        
- 
+        
 # Only MGC at this time
 class Crd(object):
     filename = ""
@@ -125,7 +125,6 @@ class Crd(object):
             if self.signature != b'MGC':
                 print('No other file types except MGC are supported')
             self.quantity = int.from_bytes(card_bytes[3:5], sys.byteorder)
-            number_of_cards = self.quantity
             index_start = 5
             index_entry_len = 52
             index_len = self.quantity * index_entry_len
@@ -167,24 +166,33 @@ class Crd(object):
         ftemp = open(tempfile, 'wb')
         CARD_BYTES_NEW = create_file(filename)       
         ftemp.write(CARD_BYTES_NEW) 
-        ftemp.close()       
-        
-                    
+        ftemp.close()             
+         
     def add_card(self):
+
+        def get_text():
+            value = text.get("1.0","end-1c")    
+            print(value) 
+            
         f = open(filename, "rb")
         card_bytes = f.read()  
         try:
-            number_of_cards += 1         
+            self.quantity = int.from_bytes(card_bytes[3:5], sys.byteorder) + 1
             index_start = 5       
             index_entry_len = 52 
-            index_len = number_of_cards * index_entry_len              
+            index_len = self.quantity * index_entry_len              
             value_start = index_start + index_len + 1       
             index = card_bytes[index_start:value_start]    
             index_entry = [None] * 52    
             index_text = gui_input(600, 'Enter card name: ')
             index_entry[51] = 0       
-            scrolledtext.insert(INSERT, index_text + '\n')           
-            print('Add Card is not implemented yet')    
+            scrolledtext.insert(INSERT, index_text + '\n')   
+            window = Toplevel()
+            window.title(index_text)  
+            text = Text(window, bg = 'beige')
+            button = Button(window, text='Add card text', command=get_text)
+            text.pack()  
+            button.pack()            
         finally:
             f.close()
 
