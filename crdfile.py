@@ -71,11 +71,9 @@ def create_file(filename):
         index_entry_len = 52
         index_len = quantity + index_entry_len
         value_start = index_start + index_len + 1
-        index_len_new = number_of_cards * index_entry_len
-        value_start_new = index_start + index_len_new + 1
         index = card_bytes[index_start:value_start]
         
-        for i in range(0, number_of_cards-1):
+        for i in range(0, number_of_cards):
             index_entry_pos = i * index_entry_len
             index_entry = index[index_entry_pos:index_entry_pos + index_entry_len]    
             index_pos = index_start + index_entry_pos
@@ -83,6 +81,7 @@ def create_file(filename):
             CARD_BYTES_NEW[index_pos:index_pos+6] = b'\x00\x00\x00\x00\x00\x00'                             # NEW
             # Absolute position of card data in file (32 bits) 
             card_pos = int.from_bytes(index_entry[6:10], sys.byteorder)     
+            print(card_pos)
             CARD_BYTES_NEW[index_pos+6:index_pos+10] = card_pos.to_bytes(4, sys.byteorder)                  # NEW   
             CARD_BYTES_NEW[index_pos+10] = 0                                                                # NEW                
             index_text = index_entry[11:51]                               # Index line text, null terminated
@@ -91,7 +90,7 @@ def create_file(filename):
             CARD_BYTES_NEW[index_pos+11:index_pos+51] =  index_text.encode(encoding='latin1')               # NEW
             CARD_BYTES_NEW[index_pos+51] = 0                                                                # NEW , Null byte, indicates end of entry   
             CARD_BYTES_NEW[card_pos:card_pos+2] = b'\x00\x00'                                               # NEW, lob
-            value_len = int.from_bytes(card_bytes[card_pos+2:card_pos+4], sys.byteorder)
+            value_len = int.from_bytes(card_bytes[card_pos+2:card_pos+4], sys.byteorder)                    
             CARD_BYTES_NEW[card_pos+2:card_pos+4] = value_len.to_bytes(2, sys.byteorder)                    # NEW
             value = card_bytes[card_pos+4:card_pos+4 + value_len + 1]
             value = value.decode(encoding='latin1')
@@ -137,6 +136,7 @@ class Crd(object):
                 assert index_entry[0:6] == b'\x00\x00\x00\x00\x00\x00'
                 # Absolute position of card data in file (32 bits)
                 card_pos = int.from_bytes(index_entry[6:10], sys.byteorder)  
+                print(card_pos)
                 index_text = index_entry[11:51]                                  # Index line text, null terminated
                 index_text = index_text[0:index_text.find(b'\00')]
                 index_text = index_text.decode(encoding='latin1')
@@ -172,30 +172,78 @@ class Crd(object):
 
         def get_text():
             value = text.get("1.0","end-1c")    
-            print(value) 
+            value_len = len(value)
+            CARD_BYTES_NEW[card_pos+4:card_pos+4 + value_len + 1] = value.encode(encoding='latin1')            # NEW    
             
+        tempfile = filename + '_tmp'
+        ftemp = open(tempfile, 'wb')
         f = open(filename, "rb")
         card_bytes = f.read()  
         try:
-            self.quantity = int.from_bytes(card_bytes[3:5], sys.byteorder) + 1
-            index_start = 5       
-            index_entry_len = 52 
-            index_len = self.quantity * index_entry_len              
-            value_start = index_start + index_len + 1       
-            index = card_bytes[index_start:value_start]    
-            index_entry = [None] * 52    
-            index_text = gui_input(600, 'Enter card name: ')
-            index_entry[51] = 0       
-            scrolledtext.insert(INSERT, index_text + '\n')   
+            quantity = int.from_bytes(card_bytes[3:5], sys.byteorder)    
+            number_of_cards = quantity + 1
+            CARD_BYTES_NEW = bytearray(2*len(card_bytes))
+            CARD_BYTES_NEW[0:3] = b'MGC'                                                                        # NEW
+            CARD_BYTES_NEW[3:5] = number_of_cards.to_bytes(2, sys.byteorder)                                    # NEW
+            index_start = 5
+            index_entry_len = 52
+            index_len = quantity + index_entry_len
+            value_start = index_start + index_len + 1
+            index = card_bytes[index_start:value_start]
+        
+            for i in range(0, quantity):
+                index_entry_pos = i * index_entry_len
+                index_entry = index[index_entry_pos:index_entry_pos + index_entry_len]    
+                index_pos = index_start + index_entry_pos
+                # Null bytes, reserved for future.
+                CARD_BYTES_NEW[index_pos:index_pos+6] = b'\x00\x00\x00\x00\x00\x00'                             # NEW
+                # Absolute position of card data in file (32 bits) 
+                card_pos = int.from_bytes(index_entry[6:10], sys.byteorder)
+                card_pos_new = card_pos + index_entry_len    
+                CARD_BYTES_NEW[index_pos+6:index_pos+10] = card_pos_new.to_bytes(4, sys.byteorder)              # NEW   
+                CARD_BYTES_NEW[index_pos+10] = 0                                                                # NEW                
+                index_text = index_entry[11:51]                               # Index line text, null terminated
+                index_text = index_text[0:index_text.find(b'\00')]
+                index_text = index_text.decode(encoding='latin1')
+                CARD_BYTES_NEW[index_pos+11:index_pos+51] =  index_text.encode(encoding='latin1')               # NEW
+                CARD_BYTES_NEW[index_pos+51] = 0                                                                # NEW , Null byte, indicates end of entry   
+                CARD_BYTES_NEW[card_pos_new:card_pos_new+2] = b'\x00\x00'                                       # NEW, lob
+                value_len = int.from_bytes(card_bytes[card_pos+2:card_pos+4], sys.byteorder)
+                CARD_BYTES_NEW[card_pos_new+2:card_pos_new+4] = value_len.to_bytes(2, sys.byteorder)            # NEW
+                value = card_bytes[card_pos+4:card_pos+4 + value_len + 1]
+                value = value.decode(encoding='latin1')
+#                value = value.replace('\r\n', '\n')
+                CARD_BYTES_NEW[card_pos_new+4:card_pos_new+4 + value_len + 1] = value.encode(encoding='latin1') # NEW    
+            
+            index_entry_pos = index_entry_pos + index_entry_len
+            index_pos = index_start + index_entry_pos
+            # Null bytes, reserved for future.
+            CARD_BYTES_NEW[index_pos:index_pos+6] = b'\x00\x00\x00\x00\x00\x00'                                 # NEW
+            # Absolute position of card data in file (32 bits) 
+            card_pos_new = card_pos_new + value_len           
+            CARD_BYTES_NEW[index_pos+6:index_pos+10] = card_pos_new.to_bytes(4, sys.byteorder)                  # NEW   
+            CARD_BYTES_NEW[index_pos+10] = 0                                                                    # NEW                       
+            new_index_text = gui_input(600, 'Enter card name: ')
+            CARD_BYTES_NEW[index_pos+11:index_pos+51] =  new_index_text.encode(encoding='latin1')               # NEW
+            CARD_BYTES_NEW[index_pos+51] = 0                                                                    # NEW , Null byte, indicates end of entry   
+            CARD_BYTES_NEW[card_pos_new:card_pos_new+2] = b'\x00\x00'                                           # NEW, lob                 
+            scrolledtext.insert(INSERT, new_index_text)   
             window = Toplevel()
             window.title(index_text)  
             text = Text(window, bg = 'beige')
-            button = Button(window, text='Add card text', command=get_text)
+#           button = Button(window, text='Add card text', command=get_text)
+            value = 'this is a test card'
+            value_len = len(value)
+            CARD_BYTES_NEW[card_pos_new+2:card_pos_new+4] = value_len.to_bytes(2, sys.byteorder)                       # NEW
+            CARD_BYTES_NEW[card_pos_new+4:card_pos_new+4 + value_len + 1] = value.encode(encoding='latin1')            # NEW                
             text.pack()  
-            button.pack()            
+ #           button.pack()            
         finally:
             f.close()
-
+#            CARD_BYTES_NEW[0:3] = b'MGC'  
+            ftemp.write(CARD_BYTES_NEW) 
+            ftemp.close()            
+        
     def delete_card(self):
         print('Delete Card is not implemented yet')      
         
