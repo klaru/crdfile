@@ -14,7 +14,6 @@
 #  GNU General Public License for more details.
 
 import sys, os
-from collections import OrderedDict
 from tkinter import *
 from tkinter.scrolledtext import *
 
@@ -171,10 +170,12 @@ class Crd(object):
             CARD_BYTES_NEW[card_pos_new+2:card_pos_new+4] = value_len_new.to_bytes(2, sys.byteorder)
             CARD_BYTES_NEW[card_pos_new+4:card_pos_new+4 + value_len_new + 1] = bytes(value_new[0:value_len_new + 1], encoding='latin1') 
             ftemp.write(CARD_BYTES_NEW) 
-            ftemp.close()           
+            ftemp.close()     
+            os.rename(tempfile, filename)            
             window.destroy()
             
         tempfile = filename + '_tmp'
+        bakfile = filename + '_bak'
         ftemp = open(tempfile, 'wb')
         f = open(filename, 'rb')
         card_bytes = f.read()  
@@ -226,14 +227,14 @@ class Crd(object):
             CARD_BYTES_NEW[card_pos_new:card_pos_new+2] = b'\x00\x00'                                           # NEW, lob              
             scrolledtext.insert(INSERT, new_index_text)   
             window = Toplevel()
-            window.title(index_text)  
+            window.title(new_index_text)  
             text = Text(window, bg = 'beige')
             button = Button(window, text='Add card text', command=get_text)              
             text.pack()  
             button.pack()            
         finally:
             f.close()
-                                            # rename temp file to file
+            os.replace(filename, bakfile)                                
         
     def delete_card(self):
         print('Delete Card is not implemented yet')      
