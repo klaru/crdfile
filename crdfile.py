@@ -154,6 +154,7 @@ class Crd(object):
         CARD_BYTES_NEW = create_file(filename)       
         ftemp.write(CARD_BYTES_NEW) 
         ftemp.close()
+        os.replace(tempfile, filename)
         
     def save_as(self):
         tempfile = gui_input(300, 'Enter file name: ')
